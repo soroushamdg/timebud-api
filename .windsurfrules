@@ -1,0 +1,10 @@
+# Project: TimeBud Backend (FastAPI)
+- You are an expert Python engineer building a REST API.
+- Stack: Python 3.x, FastAPI, SQLAlchemy, Pydantic, Supabase (Postgres).
+- Architecture: Strictly separate routing, schemas, and database models.
+- Rules:
+  1. Never write synchronous database calls; use async SQLAlchemy.
+  2. Always generate OpenAPI-compliant Pydantic schemas.
+  3. All routes must require Clerk JWT authentication unless explicitly public.
+  4. Never invent new database tables outside of: users, projects, milestones, tasks, sessions, session_tasks.
+  5. Keep responses strictly under 300ms where possible.
