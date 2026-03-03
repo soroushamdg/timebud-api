@@ -57,12 +57,8 @@ def validate_environment():
         print(f"   Current format: {db_url[:50]}...")
         sys.exit(1)
     
-    # Ensure SSL is configured for Supabase
-    if "sslmode=" not in db_url:
-        print("⚠️  DATABASE_URL should include sslmode=require for Supabase")
-        print("   Example: postgresql+asyncpg://user:pass@host:port/db?sslmode=require")
-    
     print("✅ DATABASE_URL format validated")
+    print("ℹ️  SSL will be configured automatically for Supabase")
 
 async def test_database_connection():
     """Test database connection and table access."""
