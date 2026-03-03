@@ -2,8 +2,14 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "python start.py"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
+
+[variables]
+# Required environment variables (set these in Railway dashboard)
+# DATABASE_URL = "postgresql+asyncpg://..."
+# CLERK_JWKS_URL = "https://..."
+# CLERK_SECRET_KEY = "clerk_..." (optional for user metadata)
