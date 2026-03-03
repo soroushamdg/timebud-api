@@ -14,10 +14,6 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={
-        "ssl": True,
-        "sslmode": "require"
-    }
 )
 
 AsyncSessionLocal = async_sessionmaker(
