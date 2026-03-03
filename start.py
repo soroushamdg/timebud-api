@@ -57,6 +57,12 @@ def validate_environment():
         print(f"   Current format: {db_url[:50]}...")
         sys.exit(1)
     
+    # Check if async driver is specified or will be converted
+    if not db_url.startswith("postgresql+asyncpg://"):
+        print("ℹ️  Will convert to asyncpg driver automatically")
+    else:
+        print("✅ Using asyncpg driver")
+    
     print("✅ DATABASE_URL format validated")
     print("ℹ️  SSL will be configured automatically for Supabase")
 

@@ -13,6 +13,12 @@ if not DATABASE_URL:
 # Remove SSL parameters from URL for asyncpg and add them to connect_args
 db_url = DATABASE_URL.split('?')[0]  # Remove query parameters
 
+# Ensure we're using asyncpg driver
+if not db_url.startswith("postgresql+asyncpg://"):
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
+    print(f"🔧 Converted to async driver: {db_url[:50]}...")
+
 engine = create_async_engine(
     db_url,
     echo=False,
