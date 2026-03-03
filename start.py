@@ -64,7 +64,7 @@ def validate_environment():
         print("✅ Using asyncpg driver")
     
     print("✅ DATABASE_URL format validated")
-    print("ℹ️  SSL will be configured automatically for Supabase")
+    print("ℹ️  SSL disabled (Supabase SSL enforcement is off)")
 
 async def test_database_connection():
     """Test database connection and table access."""
