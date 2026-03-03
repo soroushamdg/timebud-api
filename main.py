@@ -95,9 +95,10 @@ async def debug_jwt(request: dict):
         return {"error": str(e)}
 
 @app.get("/health")
-async def health(db: AsyncSession = Depends(get_db)):
+async def health():
     """Comprehensive health check endpoint."""
     from datetime import datetime
+    from database import AsyncSessionLocal
     
     health_status = {
         "status": "healthy",
@@ -108,19 +109,20 @@ async def health(db: AsyncSession = Depends(get_db)):
     }
     
     # Database connectivity check
-    try:
-        result = await db.execute(text("SELECT 1"))
-        await result.fetchone()
-        health_status["checks"]["database"] = {
-            "status": "healthy",
-            "connection": "successful"
-        }
-    except Exception as e:
-        health_status["status"] = "unhealthy"
-        health_status["checks"]["database"] = {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(text("SELECT 1"))
+            result.fetchone()
+            health_status["checks"]["database"] = {
+                "status": "healthy",
+                "connection": "successful"
+            }
+        except Exception as e:
+            health_status["status"] = "unhealthy"
+            health_status["checks"]["database"] = {
+                "status": "unhealthy",
+                "error": str(e)
+            }
     
     # Clerk JWKS availability check
     try:
@@ -159,45 +161,47 @@ async def health(db: AsyncSession = Depends(get_db)):
         }
     
     # Database schema check (basic)
-    try:
-        schema_check = await db.execute(text("""
-            SELECT COUNT(*) as table_count 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-            AND table_name IN ('users', 'projects')
-        """))
-        table_count = schema_check.scalar()
-        
-        if table_count >= 2:
+    async with AsyncSessionLocal() as db:
+        try:
+            schema_check = await db.execute(text("""
+                SELECT COUNT(*) as table_count 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name IN ('users', 'projects')
+            """))
+            table_count = schema_check.scalar()
+            
+            if table_count >= 2:
+                health_status["checks"]["database_schema"] = {
+                    "status": "healthy",
+                    "core_tables": table_count
+                }
+            else:
+                health_status["status"] = "degraded"
+                health_status["checks"]["database_schema"] = {
+                    "status": "unhealthy",
+                    "core_tables": table_count,
+                    "expected": 2
+                }
+        except Exception as e:
             health_status["checks"]["database_schema"] = {
-                "status": "healthy",
-                "core_tables": table_count
+                "status": "unknown",
+                "error": str(e)
             }
-        else:
-            health_status["status"] = "degraded"
-            health_status["checks"]["database_schema"] = {
-                "status": "unhealthy",
-                "core_tables": table_count,
-                "expected": 2
-            }
-    except Exception as e:
-        health_status["checks"]["database_schema"] = {
-            "status": "unknown",
-            "error": str(e)
-        }
     
     # User count check (optional performance indicator)
-    try:
-        user_count = await db.execute(text("SELECT COUNT(*) FROM users"))
-        count = user_count.scalar()
-        health_status["checks"]["user_metrics"] = {
-            "status": "healthy",
-            "total_users": count
-        }
-    except Exception as e:
-        health_status["checks"]["user_metrics"] = {
-            "status": "unknown",
-            "error": str(e)
-        }
+    async with AsyncSessionLocal() as db:
+        try:
+            user_count = await db.execute(text("SELECT COUNT(*) FROM users"))
+            count = user_count.scalar()
+            health_status["checks"]["user_metrics"] = {
+                "status": "healthy",
+                "total_users": count
+            }
+        except Exception as e:
+            health_status["checks"]["user_metrics"] = {
+                "status": "unknown",
+                "error": str(e)
+            }
     
     return health_status
