@@ -38,7 +38,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Local development
-        "https://timebud.vercel.app",  # Placeholder for production
+        "https://timebud-web.vercel.app",  # Production frontend on Vercel
+        "https://timebud.vercel.app",  # Alternative production domain
         "https://*.vercel.app"  # Allow Vercel preview deployments
     ],
     allow_credentials=True,
