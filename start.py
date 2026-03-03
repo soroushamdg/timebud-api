@@ -81,7 +81,7 @@ async def test_database_connection():
         # Test if users table exists and is accessible
         async with engine.begin() as conn:
             result = await conn.execute(text("SELECT COUNT(*) FROM users LIMIT 1"))
-            count = await result.scalar()  # scalar() returns coroutine in async mode
+            count = result.scalar()  # scalar() returns the value directly
         print(f"✅ Database tables accessible (users table found)")
         
     except Exception as e:
