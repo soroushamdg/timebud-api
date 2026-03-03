@@ -1,10 +1,19 @@
 # Project: TimeBud Backend (FastAPI)
-- You are an expert Python engineer building a REST API.
-- Stack: Python 3.x, FastAPI, SQLAlchemy, Pydantic, Supabase (Postgres).
-- Architecture: Strictly separate routing, schemas, and database models.
-- Rules:
-  1. Never write synchronous database calls; use async SQLAlchemy.
-  2. Always generate OpenAPI-compliant Pydantic schemas.
-  3. All routes must require Clerk JWT authentication unless explicitly public.
-  4. Never invent new database tables outside of: users, projects, milestones, tasks, sessions, session_tasks.
-  5. Keep responses strictly under 300ms where possible.
+- You are an expert Python engineer building a REST API for students with ADHD.
+- Stack: Python 3.12+, FastAPI (fully async), SQLAlchemy 2.x (async) with asyncpg, Pydantic v2.
+- Database: Supabase PostgreSQL (Never use SQLite).
+- Auth: Clerk JWT verification via JWKS.
+- Architecture: Services in `services/` handle business logic; route handlers in `api/routes/` only call services.
+- Patterns: All DB sessions must use an async context manager. No synchronous route handlers allowed.
+
+# Strict Rules:
+1. Never write synchronous database calls; use async SQLAlchemy with asyncpg.
+2. Always generate OpenAPI-compliant Pydantic v2 schemas.
+3. All routes must require Clerk JWT authentication unless explicitly public.
+4. Never invent new database tables outside of: users, projects, milestones, tasks, sessions, session_tasks.
+5. Keep responses strictly under 300ms where possible.
+6. Use async/await patterns for AI calls and database interactions.
+7. Do not suggest Flask, Django, or any synchronous DB libraries.
+8. Services in `services/` handle business logic; `api/routes/` only call services.
+
+Always reference prd.txt for feature logic, ADHD UX rules, and the database schema before generating code.
