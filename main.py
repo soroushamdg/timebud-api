@@ -14,7 +14,7 @@ load_dotenv()
 from auth import init_jwks_client
 
 # Import routers
-from api.routes import users, projects, tasks, sessions
+from api.routes import users, projects, milestones, tasks, sessions
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +49,7 @@ app.add_middleware(
 # Register routers
 app.include_router(users.router)
 app.include_router(projects.router)
+app.include_router(milestones.router)
 app.include_router(tasks.router)  # For milestone/task endpoints
 app.include_router(tasks.task_router)  # For task-specific endpoints
 app.include_router(sessions.router)

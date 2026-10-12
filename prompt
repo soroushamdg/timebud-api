@@ -1,0 +1,26 @@
+
+Update main.py to add the milestones router. The current main.py imports from api.routes but is missing milestones. Make the following changes only:
+
+1. Add this import alongside the existing router imports:
+from api.routes import milestones
+
+2. Add this line after the existing app.include_router calls:
+app.include_router(milestones.router)
+
+Do not change anything else in main.py. Do not change CORS settings, lifespan, health endpoint, or debug endpoint.
+
+
+---
+
+Without running the server, do the following checks:
+
+1. Syntax check — run this command and show me any errors:
+python -m py_compile api/routes/users.py api/routes/projects.py api/routes/milestones.py api/routes/tasks.py api/routes/sessions.py planner.py main.py && echo 'All files OK'
+
+2. Import check — run this command:
+python -c "from api.routes import users, projects, milestones, tasks, sessions; import planner; print('All imports OK')"
+
+3. Show me the full list of registered routes by running:
+python -c "from main import app; [print(r.methods, r.path) for r in app.routes if hasattr(r, 'methods')]"
+
+Fix any errors found before proceeding to deployment.

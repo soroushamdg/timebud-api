@@ -1,167 +1,206 @@
+from typing import List
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, List
-from uuid import UUID
+from sqlalchemy import text
 
-from database import get_db
 from auth import get_current_user
-from models.schemas import (
-    ProjectCreate, ProjectUpdate, ProjectResponse,
-    MilestoneCreate, MilestoneResponse
-)
-from services import project_service, user_service, milestone_service
+from database import get_db
+from schemas import ProjectCreate, ProjectUpdate, ProjectResponse, SuccessResponse, ProjectStatus
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-@router.get("", response_model=List[ProjectResponse])
-async def list_projects(
-    active_only: bool = True,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> List[ProjectResponse]:
-    """
-    List all projects for the current user.
-    By default, only returns active projects.
-    """
-    # Use clerk_id directly since it's now the primary key
-    clerk_id = current_user["clerk_user_id"]
-    
-    # Get projects
-    projects = await project_service.get_user_projects(db, clerk_id, active_only)
-    
-    return [ProjectResponse.model_validate(project) for project in projects]
 
-@router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
-async def create_project(
-    project_data: ProjectCreate,
+@router.get("/", response_model=List[ProjectResponse])
+async def list_projects(
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> ProjectResponse:
-    """
-    Create a new project for the current user.
-    """
-    # Use clerk_id directly since it's now the primary key
-    clerk_id = current_user["clerk_user_id"]
+):
+    """List all projects for current user (excluding deleted)."""
+    query = text("""
+        SELECT id, user_id, name, description, deadline, priority, status, color, created_at
+        FROM projects
+        WHERE user_id = :user_id AND status != 'deleted'
+        ORDER BY created_at DESC
+    """)
     
-    # Create project
-    project = await project_service.create_project(db, clerk_id, project_data)
+    result = await db.execute(query, {"user_id": current_user["clerk_user_id"]})
+    projects = result.mappings().all()
     
-    return ProjectResponse.model_validate(project)
+    return [
+        ProjectResponse(
+            id=str(project["id"]),
+            user_id=project["user_id"],
+            name=project["name"],
+            description=project["description"],
+            deadline=project["deadline"],
+            priority=project["priority"],
+            status=project["status"],
+            color=project["color"],
+            created_at=project["created_at"],
+        )
+        for project in projects
+    ]
+
+
+@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+async def create_project(
+    project: ProjectCreate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new project."""
+    project_id = str(uuid4())
+    
+    query = text("""
+        INSERT INTO projects (id, user_id, name, description, deadline, priority, status, color)
+        VALUES (:id, :user_id, :name, :description, :deadline, :priority, :status, :color)
+        RETURNING id, user_id, name, description, deadline, priority, status, color, created_at
+    """)
+    
+    result = await db.execute(
+        query,
+        {
+            "id": project_id,
+            "user_id": current_user["clerk_user_id"],
+            "name": project.name,
+            "description": project.description,
+            "deadline": project.deadline,
+            "priority": project.priority if project.priority is not None else False,
+            "status": project.status.value if project.status else ProjectStatus.active.value,
+            "color": project.color,
+        },
+    )
+    await db.commit()
+    
+    project_row = result.mappings().first()
+    
+    return ProjectResponse(
+        id=str(project_row["id"]),
+        user_id=project_row["user_id"],
+        name=project_row["name"],
+        description=project_row["description"],
+        deadline=project_row["deadline"],
+        priority=project_row["priority"],
+        status=project_row["status"],
+        color=project_row["color"],
+        created_at=project_row["created_at"],
+    )
+
 
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
-    project_id: UUID,
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> ProjectResponse:
-    """
-    Get a specific project by ID.
-    """
-    # Use clerk_id directly since it's now the primary key
-    clerk_id = current_user["clerk_user_id"]
+):
+    """Get a single project by ID."""
+    query = text("""
+        SELECT id, user_id, name, description, deadline, priority, status, color, created_at
+        FROM projects
+        WHERE id = :id AND user_id = :user_id AND status != 'deleted'
+    """)
     
-    # Get project
-    project = await project_service.get_project_by_id(db, project_id, clerk_id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found or access denied."
-        )
+    result = await db.execute(
+        query, {"id": project_id, "user_id": current_user["clerk_user_id"]}
+    )
+    project_row = result.mappings().first()
     
-    return ProjectResponse.model_validate(project)
+    if not project_row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    return ProjectResponse(
+        id=str(project_row["id"]),
+        user_id=project_row["user_id"],
+        name=project_row["name"],
+        description=project_row["description"],
+        deadline=project_row["deadline"],
+        priority=project_row["priority"],
+        status=project_row["status"],
+        color=project_row["color"],
+        created_at=project_row["created_at"],
+    )
+
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
 async def update_project(
-    project_id: UUID,
+    project_id: str,
     project_update: ProjectUpdate,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> ProjectResponse:
-    """
-    Update a project.
-    """
-    # Get user from database
-    user = await user_service.get_user_by_clerk_id(db, current_user["clerk_user_id"])
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found. Please register first."
-        )
+):
+    """Partially update a project."""
+    # Get only the fields that were actually provided
+    update_data = project_update.model_dump(exclude_unset=True)
     
-    # Update project
-    project = await project_service.update_project(db, project_id, user.id, project_update)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found or access denied."
-        )
+    if not update_data:
+        raise HTTPException(status_code=422, detail="No fields provided for update")
     
-    return ProjectResponse.model_validate(project)
+    # Build dynamic SET clause
+    set_clauses = []
+    params = {"id": project_id, "user_id": current_user["clerk_user_id"]}
+    
+    for field, value in update_data.items():
+        set_clauses.append(f"{field} = :{field}")
+        # Convert enum to its value if needed
+        if field == "status" and value is not None:
+            params[field] = value.value
+        else:
+            params[field] = value
+    
+    query = text(f"""
+        UPDATE projects
+        SET {', '.join(set_clauses)}
+        WHERE id = :id AND user_id = :user_id AND status != 'deleted'
+        RETURNING id, user_id, name, description, deadline, priority, status, color, created_at
+    """)
+    
+    result = await db.execute(query, params)
+    await db.commit()
+    
+    project_row = result.mappings().first()
+    
+    if not project_row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    return ProjectResponse(
+        id=str(project_row["id"]),
+        user_id=project_row["user_id"],
+        name=project_row["name"],
+        description=project_row["description"],
+        deadline=project_row["deadline"],
+        priority=project_row["priority"],
+        status=project_row["status"],
+        color=project_row["color"],
+        created_at=project_row["created_at"],
+    )
 
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete("/{project_id}", response_model=SuccessResponse)
 async def delete_project(
-    project_id: UUID,
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> None:
-    """
-    Soft delete (archive) a project by setting is_active to False.
-    """
-    # Get user from database
-    user = await user_service.get_user_by_clerk_id(db, current_user["clerk_user_id"])
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found. Please register first."
-        )
+):
+    """Soft delete a project by setting status to 'deleted'."""
+    query = text("""
+        UPDATE projects
+        SET status = 'deleted'
+        WHERE id = :id AND user_id = :user_id AND status != 'deleted'
+        RETURNING id
+    """)
     
-    # Delete project
-    success = await project_service.delete_project(db, project_id, user.id)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found or access denied."
-        )
-
-@router.post("/{project_id}/milestones", response_model=MilestoneResponse, status_code=status.HTTP_201_CREATED)
-async def create_milestone(
-    project_id: UUID,
-    milestone_data: MilestoneCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> MilestoneResponse:
-    """
-    Create a new milestone for a project.
-    """
-    # Use clerk_id directly since it's now the primary key
-    clerk_id = current_user["clerk_user_id"]
+    result = await db.execute(
+        query, {"id": project_id, "user_id": current_user["clerk_user_id"]}
+    )
+    await db.commit()
     
-    # Ensure milestone data has the correct project_id
-    milestone_data.project_id = project_id
+    deleted_row = result.mappings().first()
     
-    # Create milestone
-    milestone = await milestone_service.create_milestone(db, clerk_id, milestone_data)
-    if not milestone:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found or access denied."
-        )
+    if not deleted_row:
+        raise HTTPException(status_code=404, detail="Project not found")
     
-    return MilestoneResponse.model_validate(milestone)
-
-@router.get("/{project_id}/milestones", response_model=List[MilestoneResponse])
-async def list_project_milestones(
-    project_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> List[MilestoneResponse]:
-    """
-    Get all milestones for a project.
-    """
-    # Use clerk_id directly since it's now the primary key
-    clerk_id = current_user["clerk_user_id"]
-    
-    # Get milestones
-    milestones = await milestone_service.get_project_milestones(db, project_id, clerk_id)
-    
-    return [MilestoneResponse.model_validate(milestone) for milestone in milestones]
+    return SuccessResponse(
+        success=True,
+        data={"id": project_id, "message": "Project deleted successfully"},
+    )
